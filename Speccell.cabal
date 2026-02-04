@@ -1,0 +1,61 @@
+cabal-version:       2.4
+name:                Speccell
+version:             0.1.0.0
+synopsis:            8-bit system emulator (skeleton)
+description:
+  Skeleton of a classic 8-bit system emulator:
+  abstract CPU (8080/Z80-like), RAM-based video,
+  raster rendering, SDL2 frontend.
+category:            Emulator
+license:             BSD-3-Clause
+license-file:        LICENSE
+author:              Your Name
+maintainer:          you@example.com
+build-type:          Simple
+extra-source-files:  README.md
+
+common warnings
+  ghc-options:
+    -Wall
+    -Wcompat
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wmissing-export-lists
+    -Widentities
+    -Wredundant-constraints
+
+executable Speccell
+  import:            warnings
+  main-is:           Main.hs
+  hs-source-dirs:    src
+
+  default-language:  Haskell2010
+
+  build-depends:
+      base                >= 4.14 && < 5
+    , bytestring          >= 0.11
+    , vector              >= 0.12
+    , containers
+    , optparse-applicative
+    , sdl2                >= 2.5
+    , linear
+    , transformers
+    , mtl
+    , text
+
+  other-modules:
+      Config
+      Machine
+      Init
+      CPU
+      Frame
+      Video
+      Input
+      Audio
+      Frontend
+
+  ghc-options:
+    -O2
+    -threaded
+    -rtsopts
+    -with-rtsopts=-N
