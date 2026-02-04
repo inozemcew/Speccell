@@ -31,7 +31,6 @@ initMachine :: BS.ByteString -> IO Machine
 initMachine rom = do
     memory  <- VM.replicate memSize 0
     ports   <- VM.replicate portCount 0
---    fb      <- VM.replicate (screenW * screenH) 0xff000000
     when (not . BS.null $ rom) $ loadRom memory rom
     return NewMachine
         { mCPU          = initCPU
@@ -39,7 +38,6 @@ initMachine rom = do
         , mPorts        = ports
         , mFrameCnt     = 0
         , mTStates      = 0
---        , mScanline     = 0
         }
 
 
@@ -54,7 +52,7 @@ initOutput = do
 loadRom :: Memory -> BS.ByteString -> IO ()
 loadRom mem rom = do
     let n = (BS.length rom) `min` (VM.length mem) `min` 16384
-    mapM_ (\i -> VM.write mem i (BS.index rom i)) [0..n-1]
+    mapM_ (\i -> VM.write mem (i+0x4000) (BS.index rom i)) [0..n-1]
 
 
 
