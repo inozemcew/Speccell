@@ -7,7 +7,7 @@ import Machine
     ( Machine(..)
     , Output(..)
     )
-import CPU(cpuStep)
+import Machine.Run(cpuStep)
 import Video
 
 import Control.Monad

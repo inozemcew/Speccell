@@ -8,14 +8,15 @@ module Init
     ) where
 
 import Machine
+import Machine.CPU
 import qualified Data.Vector.Unboxed.Mutable as VM
 import qualified Data.Vector.Storable.Mutable as SM
 import qualified Data.ByteString as BS
-import qualified SDL as SDL
+import qualified SDL
 import Data.IORef(IORef, newIORef)
 import Data.Word
 import Data.Text(pack)
-import Control.Monad(when)
+import Control.Monad(unless)
 
 memSize, portCount :: Int
 memSize   = 65536
@@ -25,13 +26,38 @@ initCPU :: CPU
 initCPU = CPU
     { cpuPC = 0x0000
     , cpuSP = 0xffff
-    }
+    , cpuA  = 0x00
+    , cpuF  = 0x00
+    , cpuB  = 0x00
+    , cpuC  = 0x00
+    , cpuD  = 0x00
+    , cpuE  = 0x00
+    , cpuH  = 0x00
+    , cpuL  = 0x00
+    , cpuA' = 0x00
+    , cpuF' = 0x00
+    , cpuB' = 0x00
+    , cpuC' = 0x00
+    , cpuD' = 0x00
+    , cpuE' = 0x00
+    , cpuH' = 0x00
+    , cpuL' = 0x00
+    , cpuXH = 0x00
+    , cpuXL = 0x00
+    , cpuYH = 0x00
+    , cpuYL = 0x00
+    , cpuI  = 0x00
+    , cpuR  = 0x00
+-- internal
+    , cpuOP = NoPrefix
+}
 
-initMachine :: BS.ByteString -> IO Machine
-initMachine rom = do
+initMachine :: BS.ByteString -> BS.ByteString -> IO Machine
+initMachine rom scr = do
     memory  <- VM.replicate memSize 0
     ports   <- VM.replicate portCount 0
-    when (not . BS.null $ rom) $ loadRom memory rom
+    unless (BS.null rom) $ loadRom memory rom
+    unless (BS.null scr) $ loadScr memory scr
     return NewMachine
         { mCPU          = initCPU
         , mMemory       = memory
@@ -51,8 +77,14 @@ initOutput = do
 
 loadRom :: Memory -> BS.ByteString -> IO ()
 loadRom mem rom = do
-    let n = (BS.length rom) `min` (VM.length mem) `min` 16384
-    mapM_ (\i -> VM.write mem (i+0x4000) (BS.index rom i)) [0..n-1]
+    let n = BS.length rom `min` VM.length mem `min` 16384
+    mapM_ (\i -> VM.write mem i (BS.index rom i)) [0..n-1]
+
+
+loadScr :: Memory -> BS.ByteString -> IO ()
+loadScr mem scr = do
+    let n = BS.length scr `min` VM.length mem `min` 0x1B00
+    mapM_ (\i -> VM.write mem (i+0x4000) (BS.index scr i)) [0..n-1]
 
 
 

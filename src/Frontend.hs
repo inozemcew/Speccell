@@ -30,8 +30,9 @@ data FrontendState = FrontendState
 
 runEmulator :: Config -> IO ()
 runEmulator cfg = do
-    rom <- BS.readFile (cfgRomPath cfg)
-    m0 <- initMachine rom
+    rom <- rdFile (cfgRomPath cfg)
+    scr <- rdFile (cfgScrPath cfg)
+    m0 <- initMachine rom scr
     print "Machine initialized"
     o0 <- initOutput
     print "Output initialized"
@@ -39,7 +40,8 @@ runEmulator cfg = do
     sdl <- initSDL (cfgScale cfg)
     print "SDL initialized"
     loop (FrontendState sdl False) m0 o0
-
+    where 
+        rdFile f = if null f then return BS.empty else BS.readFile f
 
 
 loop :: FrontendState -> Machine -> Output -> IO ()
@@ -76,7 +78,7 @@ handleHostCommands fest cmds =
         apply (Just st) HostToggleMouseGrab = do
             let oldGrab = not (feMouseGrab st)
             result <- setRelativeMouseMode $ not oldGrab  -- SDL.Raw.Event
-            let newGrab = if result == 0 then oldGrab else oldGrab
+            let newGrab = if result == 0 then oldGrab else feMouseGrab st
             pure $ Just st { feMouseGrab = newGrab }
 
 

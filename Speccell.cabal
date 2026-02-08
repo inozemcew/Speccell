@@ -47,7 +47,8 @@ executable Speccell
       Config
       Machine
       Init
-      CPU
+      Machine.CPU
+      Machine.Run
       Frame
       Video
       Input
