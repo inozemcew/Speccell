@@ -52,12 +52,11 @@ initCPU = CPU
     , cpuOP = NoPrefix
 }
 
-initMachine :: BS.ByteString -> BS.ByteString -> IO Machine
-initMachine rom scr = do
+initMachine :: BS.ByteString -> IO Machine
+initMachine rom  = do
     memory  <- VM.replicate memSize 0
     ports   <- VM.replicate portCount 0
     unless (BS.null rom) $ loadRom memory rom
-    unless (BS.null scr) $ loadScr memory scr
     return NewMachine
         { mCPU          = initCPU
         , mMemory       = memory
@@ -79,13 +78,6 @@ loadRom :: Memory -> BS.ByteString -> IO ()
 loadRom mem rom = do
     let n = BS.length rom `min` VM.length mem `min` 16384
     mapM_ (\i -> VM.write mem i (BS.index rom i)) [0..n-1]
-
-
-loadScr :: Memory -> BS.ByteString -> IO ()
-loadScr mem scr = do
-    let n = BS.length scr `min` VM.length mem `min` 0x1B00
-    mapM_ (\i -> VM.write mem (i+0x4000) (BS.index scr i)) [0..n-1]
-
 
 
 screenW, screenH :: Int

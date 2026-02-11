@@ -5,7 +5,7 @@ module Frontend
 
 import Config(Config(..))
 import Init
-import Machine(Machine, Output(..), FrameBuffer)
+import Machine(Machine(mMemory), Output(..), FrameBuffer)
 import Input(inpHostCommands,HostCommand(..), pollInput, applyInput)
 import Frame(emulateFrame)
 import Audio(playAudio)
@@ -13,13 +13,16 @@ import qualified Data.ByteString as BS
 import qualified Data.Vector.Storable.Mutable as SM
 import Foreign.Marshal.Utils (copyBytes)
 import Foreign.Ptr (Ptr, plusPtr, castPtr)
-import qualified SDL as SDL
+import qualified SDL
 import SDL.Raw.Event(setRelativeMouseMode)
 import Data.IORef(readIORef, writeIORef)
 import Data.Word
-import Control.Monad(when, foldM, replicateM_)
+import Control.Monad(when, unless, foldM, replicateM_)
 import Control.Monad.Trans
 import Control.Monad.Trans.State(evalStateT, get, put)
+
+import qualified Data.Vector.Unboxed.Mutable as VM
+
 
 
 data FrontendState = FrontendState
@@ -32,7 +35,9 @@ runEmulator :: Config -> IO ()
 runEmulator cfg = do
     rom <- rdFile (cfgRomPath cfg)
     scr <- rdFile (cfgScrPath cfg)
-    m0 <- initMachine rom scr
+    m0 <- initMachine rom
+    unless (BS.null scr) $ loadScr (mMemory m0) scr
+
     print "Machine initialized"
     o0 <- initOutput
     print "Output initialized"
@@ -42,6 +47,10 @@ runEmulator cfg = do
     loop (FrontendState sdl False) m0 o0
     where 
         rdFile f = if null f then return BS.empty else BS.readFile f
+        loadScr mem scr = do
+            let n = BS.length scr `min` VM.length mem `min` 0x1B00
+            mapM_ (\i -> VM.write mem (i+0x4000) (BS.index scr i)) [0..n-1]
+
 
 
 loop :: FrontendState -> Machine -> Output -> IO ()
