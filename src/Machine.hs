@@ -16,14 +16,14 @@ module Machine
     ) where
 
 import Machine.CPU
-import qualified Data.Vector.Unboxed.Mutable as M
+import qualified Data.Vector.Unboxed.Mutable as VM
 import qualified Data.Vector.Storable.Mutable as SM
 import Data.Word
 import Data.Bits
 
 
-type Memory       = M.IOVector Byte
-type Ports        = M.IOVector Byte
+type Memory       = VM.IOVector Byte
+type Ports        = VM.IOVector Byte
 type FrameBuffer  = SM.IOVector Word32
 
 
@@ -42,7 +42,7 @@ data Output = NewOutput
 
 
 readMemory :: Machine -> Address -> IO Byte
-readMemory m addr = M.read (mMemory m) (fromIntegral addr)
+readMemory m addr = VM.read (mMemory m) (fromIntegral addr)
 
 readMemoryW :: Machine -> Address -> IO Address
 readMemoryW m addr = do
@@ -52,7 +52,7 @@ readMemoryW m addr = do
 
 writeMemory :: Machine -> Address -> Byte -> IO ()
 writeMemory m addr b
-  | addr > 0x4000 = M.write (mMemory m) (fromIntegral addr) b
+  | addr >= 0x4000 = VM.write (mMemory m) (fromIntegral addr) b
   | otherwise = pure ()
 
 writeMemoryW :: Machine -> Address -> Address -> IO ()
@@ -62,8 +62,8 @@ writeMemoryW m addr w = do
     writeMemory m (addr+1) h
 
 readPort :: Machine -> Address -> IO Byte
-readPort m p = M.read (mPorts m) (fromIntegral p)
+readPort m p = VM.read (mPorts m) (fromIntegral p)
 
 writePort :: Machine -> Address -> Byte -> IO ()
-writePort m p v = M.write (mPorts m) (fromIntegral p) v
+writePort m p v = VM.write (mPorts m) (fromIntegral p) v
 

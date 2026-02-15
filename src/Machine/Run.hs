@@ -17,19 +17,24 @@ cpuStep :: (MonadIO m) => Machine -> m (Machine, Int)
 cpuStep machine = liftIO $ do
     let op = cpuOP $ mCPU machine
         pc = cpuPC $ mCPU machine
+        m0 = machine{mCPU=(mCPU machine) {cpuOP2 = NoPrefix}}
     opcode <- readMemory machine pc
+----------------------
     print (mCPU machine)
-    print $ showHex opcode ""
-    -- (new machine state, bytes, t-states)
+    opcode2 <- readMemory machine (pc+1)
+    print $ showHex opcode . showHex opcode2 $ ""
+----------------------
+ -- (new machine state, bytes, t-states)
     (m1,b,t) <- case op of
-        CBPrefix -> cbInstructions machine opcode
-        EDPrefix -> edInstructions machine opcode
-        _Prefix  -> ordInstructions machine opcode
+        CBPrefix -> cbInstructions m0 opcode
+        EDPrefix -> edInstructions m0 opcode
+        _Prefix  -> ordInstructions m0 opcode
     let cpu = mCPU m1
     let m2 = m1
             { mCPU = cpu
                 { cpuPC = cpuPC cpu + b
-                , cpuR  = cpuR  cpu + 1 }
+                , cpuR  = cpuR  cpu + 1 
+                , cpuOP = cpuOP2 cpu}
             , mTStates = mTStates machine + t
             }
     return (m2, t)
@@ -48,19 +53,65 @@ ordInstructions machine opcode = case opcode .&. 0xC0 of
             0x02 -> instLD_mem_R machine opcode
             0x03 -> instINC_RR machine (opcode `shiftR` 4) False
             0x04 -> instINC_DEC_R machine (opcode `shiftR` 3) False
+            0x05 -> instINC_DEC_R machine (opcode `shiftR` 3) True
+            0x06 -> instLD_R_n machine (opcode `shiftR` 3)
             
             0x0B -> instINC_RR machine (opcode `shiftR` 4) True
-            0x0C -> instINC_DEC_R machine (opcode `shiftR` 3) True
+            0x0C -> instINC_DEC_R machine (opcode `shiftR` 3) False
+            0x0D -> instINC_DEC_R machine (opcode `shiftR` 3) True
+            0x0E -> instLD_R_n machine (opcode `shiftR` 3)
             _    -> stubResult machine
         q40 = if opcode == 0x76
             then instHalt machine
             else instLD_R_R machine (shiftR opcode 3 .&. 7) (opcode .&. 7)
         q80 = stubResult machine
-        qC0 = stubResult machine
+        qC0 = case opcode .&. 0x0f of
+                0x0D -> instCALL_EXX_Prefix machine opcode
+                _    -> stubResult machine
 
 
 instX0 :: Machine -> Byte -> StepResult
-instX0 machine opcode = stubResult machine
+instX0 machine opcode 
+    = case opcode of
+           0x00 -> return (machine, 1, 4)  -- NOP
+           0x08 -> return 
+                (machine         -- EX AF,AF'
+                    {mCPU = cpu
+                        { cpuA  = cpuA' cpu
+                        , cpuA' = cpuA  cpu
+                        , cpuF  = cpuF' cpu
+                        , cpuF' = cpuF  cpu
+                        }
+                    }, 1, 4)
+           0x10 -> do            -- DJNZ
+                let b = cpuB cpu
+                    m = machine{mCPU = cpu{cpuB = b-1}}
+                if b==1 then return (m, 2, 8)
+                        else do
+                            o <- readMemory m (pc+1)
+                            return (m {mCPU = cpu{cpuPC = plusOffset pc o}}, 2, 13)
+           0x18 -> instJR 
+           0x20 -> if isFlagZ cpu -- JR NZ,d   
+                      then return (machine, 2, 7)
+                      else instJR
+           0x28 -> if isFlagZ cpu -- JR Z,d
+                      then instJR
+                      else return (machine, 2, 7)
+           0x30 -> if isFlagC cpu -- JR NC,d   
+                      then return (machine, 2, 7)
+                      else instJR
+           0x38 -> if isFlagC cpu -- JR C,d
+                      then instJR
+                      else return (machine, 2, 7)
+           ____ -> error "Unknown 0x00 instruction"
+    where 
+        cpu = mCPU machine
+        pc = cpuPC cpu
+        instJR = do
+            o <- readMemory machine (pc+1)
+            return (machine {mCPU = cpu{cpuPC = plusOffset pc o}}, 2, 12)
+
+
 
 ---------------------------
 -- LD RR,nn instructions --
@@ -126,8 +177,13 @@ instINC_DEC_R machine reg dec = do
         op = cpuOP cpu
     if reg == 6
     then do
-        error "INC (HL) not implemented"
-        --return (machine,1,7)
+        (o, b, t) <- offsetHL_IX_IY machine
+        r <- readMemory machine o
+        let (r', upd) = if dec 
+                then (r - 1, updFlagsDec)
+                else (r + 1, updFlagsInc)
+        writeMemory machine o r'
+        return (machine{mCPU = upd cpu r r'}, 1 + b, 7 + t)
     else do
         let r = getReg8 cpu op reg
         let (r', upd) = if dec 
@@ -138,36 +194,71 @@ instINC_DEC_R machine reg dec = do
 
 
 -------------------------
+-- LD r,n instructions --
+-------------------------
+instLD_R_n :: Machine -> Byte -> StepResult
+instLD_R_n machine reg
+    | reg == 6 = do
+        (o, b, t) <- offsetHL_IX_IY machine
+        n <- readMemory machine (cpuPC cpu + b + 1)
+        writeMemory machine o n
+        return (machine, 2 + b, 10 + t)
+    | otherwise = do
+        n <- readMemory machine (cpuPC cpu + 1)
+        return (machine{mCPU = setReg8 cpu op reg n}, 2, 10)
+    where
+        cpu = mCPU machine
+        op = cpuOP cpu
+
+
+-------------------------
 -- LD r,r instructions --
 -------------------------
 instLD_R_R :: Machine -> Byte -> Byte -> StepResult
 instLD_R_R machine r1 r2
     | r1 == 6 = do   -- ld (hl),r
-        (addr, b, t) <- forIXIY
+        (addr, b, t) <- offsetHL_IX_IY machine 
         writeMemory machine addr $ getReg8 cpu NoPrefix r2
-        return (machine, b, t)
+        return (machine, 1+b, 7+t)
     | r2 == 6 = do          -- ld r,(hl)
-        (addr, b, t) <- forIXIY
+        (addr, b, t) <- offsetHL_IX_IY machine
         cpu' <- setReg8 cpu NoPrefix r1 <$> readMemory machine addr
-        return (machine{mCPU = cpu'}, b, t)
+        return (machine{mCPU = cpu'}, 1+b, 7+t)
     | otherwise = return (machine{mCPU = setReg8 cpu op r1 $ getReg8 cpu op r2}, 1, 4)
     where
         cpu = mCPU machine
         op = cpuOP cpu
-        forIXIY = case op of
-                    DDPrefix -> do
-                        o <- readMemory machine (cpuPC cpu + 1)
-                        return (getIX_Off cpu o, 2, 15)
-                    FDPrefix -> do
-                        o <- readMemory machine (cpuPC cpu + 1)
-                        return (getIY_Off cpu o, 2, 15)
-                    _OtherPrefix ->
-                        return (getHL cpu, 1, 7)
 
+offsetHL_IX_IY :: Machine ->IO (Address, Address, Int)
+offsetHL_IX_IY machine = case op of
+    DDPrefix -> do
+        o <- readMemory machine (cpuPC cpu + 1)
+        return (getIX_Off cpu o, 1, 12)
+    FDPrefix -> do
+        o <- readMemory machine (cpuPC cpu + 1)
+        return (getIY_Off cpu o, 1, 12)
+    _OtherPrefix ->
+        return (getHL cpu, 0, 0)
+    where
+        cpu = mCPU machine
+        op = cpuOP cpu
 
 instHalt :: Machine -> StepResult
 instHalt machine = error "Halt - not implemented yet"
                    --return (machine, 0, 4)
+
+
+instCALL_EXX_Prefix :: Machine -> Byte -> StepResult
+instCALL_EXX_Prefix machine opcode = case opcode of
+    0xCD -> stubResult machine
+    0xDD -> return (machine{mCPU = cpu{cpuOP2 = DDPrefix}}, 1, 4)
+    0xED -> return (machine{mCPU = cpu{cpuD = cpuH cpu, cpuE = cpuL cpu, cpuH = cpuD cpu, cpuL = cpuE cpu}}, 1, 4)
+    0xFD -> return (machine{mCPU = cpu{cpuOP2 = FDPrefix}}, 1, 4)
+    _Other -> error "Invalid 11xx1101 opcode"
+    where
+        cpu = mCPU machine
+
+
 
 cbInstructions :: Machine -> Byte -> StepResult
 cbInstructions machine opcode = do

@@ -27,8 +27,11 @@ module Machine.CPU
     , updFlagsInc
     , updFlagsSub
     , updFlagsDec
+    , isFlagZ
+    , isFlagC
     , toWord
     , fromWord
+    , plusOffset
     ) where
 
 import Prelude hiding (Word)
@@ -70,6 +73,7 @@ data CPU = CPU
     , cpuR  :: !Byte
 -- internal
     , cpuOP :: !OpcodePrefix
+    , cpuOP2:: !OpcodePrefix
     }
 
 instance Show CPU where
@@ -98,6 +102,12 @@ cpuFlagN  :: Byte
 cpuFlagN  = 0x02
 cpuFlagC  :: Byte
 cpuFlagC  = 0x01
+
+isFlagZ :: CPU -> Bool
+isFlagZ cpu = cpuFlagZ .&. cpuF cpu /=0
+
+isFlagC :: CPU -> Bool
+isFlagC cpu = cpuFlagC .&. cpuF cpu /=0
 
 
 setBC :: CPU -> Word-> CPU
@@ -165,11 +175,10 @@ getHL_IX_IY cpu
 
 
 getIX_Off :: CPU -> Byte -> Address
-getIX_Off cpu o = getIX cpu + fromIntegral o - if o > 127 then 256 else 0
-
+getIX_Off cpu o = plusOffset (getIX cpu) o
 
 getIY_Off :: CPU -> Byte -> Address
-getIY_Off cpu o = getIY cpu + fromIntegral o - if o > 127 then 256 else 0
+getIY_Off cpu o = plusOffset (getIY cpu) o
 
 
 getReg8 :: CPU -> OpcodePrefix -> Byte -> Byte
@@ -246,6 +255,10 @@ setFlagsSubDec oR nR = (s .|. z .|. h .|. pv .|. n, c)
         pv = if oR `xor` 0x80 < nR `xor` 0x80 then cpuFlagPV else 0
         n  = cpuFlagN
         c  = if oR < nR then cpuFlagC else 0
+
+{-# INLINE plusOffset #-}
+plusOffset :: Address -> Byte -> Address
+plusOffset a o = a + fromIntegral o - if o > 127 then 256 else 0
 
 
 {-# INLINE toWord #-}

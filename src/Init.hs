@@ -50,6 +50,7 @@ initCPU = CPU
     , cpuR  = 0x00
 -- internal
     , cpuOP = NoPrefix
+    , cpuOP2 = NoPrefix
 }
 
 initMachine :: BS.ByteString -> IO Machine
