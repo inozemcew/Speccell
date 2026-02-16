@@ -1,6 +1,7 @@
 -- CPU.hs
 module Machine.CPU
     ( Address
+    , Word
     , Byte
     , CPU(..)
     , OpcodePrefix(..)
@@ -23,12 +24,6 @@ module Machine.CPU
     , getIY_Off
     , getReg8
     , setReg8
-    , updFlagsAdd
-    , updFlagsInc
-    , updFlagsSub
-    , updFlagsDec
-    , isFlagZ
-    , isFlagC
     , toWord
     , fromWord
     , plusOffset
@@ -90,24 +85,6 @@ instance Show CPU where
             showsReg s w = showString s . showHex w
 
 
-cpuFlagS  :: Byte
-cpuFlagS  = 0x80
-cpuFlagZ  :: Byte
-cpuFlagZ  = 0x40
-cpuFlagH  :: Byte
-cpuFlagH  = 0x10
-cpuFlagPV :: Byte
-cpuFlagPV = 0x04
-cpuFlagN  :: Byte
-cpuFlagN  = 0x02
-cpuFlagC  :: Byte
-cpuFlagC  = 0x01
-
-isFlagZ :: CPU -> Bool
-isFlagZ cpu = cpuFlagZ .&. cpuF cpu /=0
-
-isFlagC :: CPU -> Bool
-isFlagC cpu = cpuFlagC .&. cpuF cpu /=0
 
 
 setBC :: CPU -> Word-> CPU
@@ -213,48 +190,6 @@ setReg8 cpu _        n b = case n of
                                 _ -> error "getReg8: invalid reg number >7"
 
 
-updFlagsAdd :: CPU -> Byte -> Byte -> CPU
-updFlagsAdd cpu oR nR = cpu{cpuF = f .|. c}
-    where
-        (f, c) = setFlagsAddInc oR nR
-
-updFlagsInc :: CPU -> Byte -> Byte -> CPU
-updFlagsInc cpu oR nR = cpu{cpuF = f .|. c}
-    where
-        (f, _) = setFlagsAddInc oR nR
-        c = cpuF cpu .&. cpuFlagC
-
-setFlagsAddInc :: Byte -> Byte -> (Byte, Byte)
-setFlagsAddInc oR nR = (s .|. z .|. h .|. pv .|. n, c)
-    where 
-        s  = if nR > 127 then cpuFlagS else 0
-        z  = if nR == 0  then cpuFlagZ else 0
-        h  = if oR .&. 0x0F > nR .&. 0x0F then cpuFlagH else 0
-        pv = if oR `xor` 0x80 > nR `xor` 0x80 then cpuFlagPV else 0
-        n  = 0
-        c  = if oR > nR then cpuFlagC else 0
-
-
-updFlagsSub :: CPU -> Byte -> Byte -> CPU
-updFlagsSub cpu oR nR = cpu{cpuF = f .|. c}
-    where
-        (f, c) = setFlagsSubDec oR nR
-
-updFlagsDec :: CPU -> Byte -> Byte -> CPU
-updFlagsDec cpu oR nR = cpu{cpuF = f .|. c}
-    where
-        (f, _) = setFlagsSubDec oR nR
-        c = cpuF cpu .&. cpuFlagC
-
-setFlagsSubDec :: Byte -> Byte -> (Byte, Byte)
-setFlagsSubDec oR nR = (s .|. z .|. h .|. pv .|. n, c)
-    where 
-        s  = if nR > 127 then cpuFlagS else 0
-        z  = if nR == 0  then cpuFlagZ else 0
-        h  = if oR .&. 0x0F < nR .&. 0x0F then cpuFlagH else 0
-        pv = if oR `xor` 0x80 < nR `xor` 0x80 then cpuFlagPV else 0
-        n  = cpuFlagN
-        c  = if oR < nR then cpuFlagC else 0
 
 {-# INLINE plusOffset #-}
 plusOffset :: Address -> Byte -> Address

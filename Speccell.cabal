@@ -57,6 +57,7 @@ library Speccell-lib
       Machine
       Init
       Machine.CPU
+      Machine.CPUFlags
       Machine.Run
       Frame
       Video

@@ -4,6 +4,7 @@ module Machine.Run
 
 import Machine
 import Machine.CPU
+import Machine.CPUFlags
 
 import Data.Bits
 import Control.Monad.IO.Class
@@ -55,6 +56,9 @@ ordInstructions machine opcode = case opcode .&. 0xC0 of
             0x04 -> instINC_DEC_R machine (opcode `shiftR` 3) False
             0x05 -> instINC_DEC_R machine (opcode `shiftR` 3) True
             0x06 -> instLD_R_n machine (opcode `shiftR` 3)
+            
+            0x08 -> instX0 machine opcode
+            0x09 -> instADD_HL_RR machine opcode
             
             0x0B -> instINC_RR machine (opcode `shiftR` 4) True
             0x0C -> instINC_DEC_R machine (opcode `shiftR` 3) False
@@ -120,11 +124,11 @@ instLD_RR_W :: Machine -> Byte -> StepResult
 instLD_RR_W machine opcode = do
     let cpu = mCPU machine
     w <- readMemoryW machine (cpuPC cpu + 1)
-    let cpu' = case opcode .&. 0x30 of
-                    0x00 -> setBC cpu w
-                    0x10 -> setDE cpu w
-                    0x20 -> setHL_IX_IY cpu w
-                    0x30 -> setSP cpu w
+    let cpu' = case opcode of
+                    0x01 -> setBC cpu w
+                    0x11 -> setDE cpu w
+                    0x21 -> setHL_IX_IY cpu w
+                    0x31 -> setSP cpu w
                     _    -> error "Unknown register in LD RR,nn"
     return (machine{mCPU = cpu'}, 3, 10)
 
@@ -209,6 +213,23 @@ instLD_R_n machine reg
     where
         cpu = mCPU machine
         op = cpuOP cpu
+
+---------------
+-- ADD HL,RR --
+---------------
+instADD_HL_RR :: Machine -> Byte -> StepResult
+instADD_HL_RR machine opcode = return (machine{mCPU = cpu'}, 1, 11)
+    where 
+        cpu = mCPU machine
+        r1 = getHL_IX_IY cpu
+        r2 = case opcode of
+                0x09 -> getBC cpu
+                0x19 -> getDE cpu
+                0x29 -> getHL_IX_IY cpu
+                0x39 -> getSP cpu
+                ____ -> error "Unknown ADD HL,RR opcode" 
+        rr = r1 + r2
+        cpu' = updFlagsAddW (setHL_IX_IY cpu rr) r1 rr 
 
 
 -------------------------
