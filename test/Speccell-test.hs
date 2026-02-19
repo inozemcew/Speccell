@@ -27,4 +27,4 @@ tests = testGroup "Cpu tests"
     $ cpuTestMemory
     ++ cpuTestLD_RR_nn 
     ++ cpuTestLD_R_n
-
+    ++ cpuTestINC_R

@@ -13,6 +13,7 @@ module Machine.CPU
     , setIX
     , setIY
     , setHL_IX_IY
+    , getAF
     , getBC
     , getDE
     , getHL
@@ -27,6 +28,8 @@ module Machine.CPU
     , toWord
     , fromWord
     , plusOffset
+    , showsByte
+    , showsWord
     ) where
 
 import Prelude hiding (Word)
@@ -82,9 +85,7 @@ instance Show CPU where
         showsReg " IX=" (getIX cpu) .
         showsReg " IY=" (getIY cpu)
         where
-            showsReg s w = showString s . showHex w
-
-
+            showsReg s w = showString s . showsWord w
 
 
 setBC :: CPU -> Word-> CPU
@@ -203,3 +204,16 @@ toWord h l = (fromIntegral h `shiftL` 8) .|. fromIntegral l
 {-# INLINE fromWord #-}
 fromWord :: Address -> (Byte, Byte)
 fromWord w = (fromIntegral (w `shiftR` 8), fromIntegral (w .&. 0xFF))
+
+showsByte :: Byte -> ShowS
+showsByte = showsHex 1 
+
+showsWord :: Address -> ShowS
+showsWord = showsHex 2
+
+showsHex :: (Integral a, Show a) => Int -> a -> ShowS
+showsHex l b = showString (take n "0000") . showHex b . showChar ' ' 
+    where
+        n | b < 16 = l*2 -1
+          | b < 256 = l*2 -2
+          | otherwise = 0

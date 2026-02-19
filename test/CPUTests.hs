@@ -2,6 +2,7 @@ module CPUTests
     ( cpuTestMemory
     , cpuTestLD_RR_nn
     , cpuTestLD_R_n
+    , cpuTestINC_R
     ) where
 
 import Test.Tasty
@@ -11,6 +12,7 @@ import TestUtils
 
 import Machine
 import Machine.CPU
+import Machine.CPUFlags
 import Init(initMachine)
 
 import System.Random
@@ -62,6 +64,10 @@ cpuTestLD_R_n = [testCase "LD R,n" $ mkTestLD_R_n o g s | (o, g, s) <-
         ]
     ] ++
     [testCase "LD (HL),n " mkTestLD_HL_n]
+
+
+cpuTestINC_R :: [TestTree]
+cpuTestINC_R = [testCase "INC R" $ mkTestINC_r 0x04 cpuB "B"]
 
 mkTestLD_RR_nn :: Byte -> (CPU -> Address) -> String -> Assertion
 mkTestLD_RR_nn op getReg reg =  do
@@ -156,5 +162,25 @@ mkTestLD_IX_n = do
             return ms'
 
 
+mkTestINC_r :: Byte -> (CPU -> Byte) -> String -> Assertion
+mkTestINC_r op cpuReg rName = do
+    let rom = BS.pack $ replicate 300 op
+    runMTest rom [1..300] assertion
+    where
+        assertion ms _ = do
+            let ((m, t), ms') = (head ms, tail ms)
+            let cpu = mCPU m
+            --print $ showString "PC=" . showHex (cpuPC cpu) $""
+            ----------------------
+            print cpu
+            opcode1 <- readMemory m (cpuPC cpu)
+            opcode2 <- readMemory m (cpuPC cpu + 1)
+            print $ showsByte opcode1 . showsByte opcode2 $ ""
+            ----------------------
 
+            assertEqual ("INC "++rName++" tacts /=4") 4 t 
+            assertBool ("INC r Z flag error @"++rName++"==0") ((cpuReg cpu == 0) == isFlagZ cpu)
+            assertBool "INC r S flag error @R<0" ((cpuReg cpu >= 0x80) == isFlagS cpu)
+
+            return ms'
 

@@ -12,6 +12,7 @@ import Machine.CPU
 import Machine.Run
 import Init
 
+import Numeric
 import qualified Data.ByteString as BS
 import Control.Monad.Trans
 import Control.Monad.Trans.State

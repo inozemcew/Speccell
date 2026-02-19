@@ -6,6 +6,7 @@ module Machine.CPUFlags
     , updFlagsAddW
     , isFlagZ
     , isFlagC
+    , isFlagS
 
     ) where
 
@@ -33,6 +34,9 @@ isFlagZ cpu = testBit (cpuF cpu) cpuFlagZ
 
 isFlagC :: CPU -> Bool
 isFlagC cpu = testBit (cpuF cpu) cpuFlagC
+
+isFlagS :: CPU -> Bool
+isFlagS cpu = testBit (cpuF cpu) cpuFlagS
 
 
 updFlagsAdd :: CPU -> Byte -> Byte -> CPU

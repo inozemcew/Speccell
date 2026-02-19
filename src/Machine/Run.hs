@@ -20,11 +20,6 @@ cpuStep machine = liftIO $ do
         pc = cpuPC $ mCPU machine
         m0 = machine{mCPU=(mCPU machine) {cpuOP2 = NoPrefix}}
     opcode <- readMemory machine pc
-----------------------
-    print (mCPU machine)
-    opcode2 <- readMemory machine (pc+1)
-    print $ showHex opcode . showHex opcode2 $ ""
-----------------------
  -- (new machine state, bytes, t-states)
     (m1,b,t) <- case op of
         CBPrefix -> cbInstructions m0 opcode
@@ -59,7 +54,7 @@ ordInstructions machine opcode = case opcode .&. 0xC0 of
             
             0x08 -> instX0 machine opcode
             0x09 -> instADD_HL_RR machine opcode
-            
+            0x0A -> instLD_R_mem machine opcode
             0x0B -> instINC_RR machine (opcode `shiftR` 4) True
             0x0C -> instINC_DEC_R machine (opcode `shiftR` 3) False
             0x0D -> instINC_DEC_R machine (opcode `shiftR` 3) True
@@ -154,6 +149,31 @@ instLD_mem_R machine opcode = do
                 _   -> error "Unknown register in LD (mem),nn"
             writeMemory machine addr $ cpuA cpu
             return (machine, b, t)
+
+
+---------------------------------------------------------
+-- LD a,(BC\DE\mem),a and LD HL\IX\IY,(mem) instructions --
+---------------------------------------------------------
+instLD_R_mem :: Machine -> Byte -> StepResult
+instLD_R_mem machine opcode = do
+    let cpu = mCPU machine
+    if opcode == 0x2A
+        then do
+            addr <- readMemoryW machine $ cpuPC cpu + 1
+            w <- readMemoryW machine addr
+            let cpu' = setHL_IX_IY cpu w
+            return (machine{mCPU = cpu'}, 3, 16)
+        else do
+            (addr, b, t) <- case opcode of
+                0x0A -> return (getBC cpu, 1, 7) 
+                0x1A -> return (getDE cpu, 1, 7)
+                0x3A -> do 
+                    addr <- readMemoryW machine $ cpuPC cpu + 1
+                    return (addr, 3, 13)
+                _   -> error "Unknown register in LD (mem),nn"
+            a <- readMemory machine addr 
+            let cpu' = cpu{cpuA = a}
+            return (machine{mCPU = cpu'}, b, t)
 
 
 -------------------------
